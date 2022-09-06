@@ -30,6 +30,7 @@ pub mod job;
 
 mod proto;
 mod gen_server;
+mod ftd_sklave;
 mod access_policy;
 
 pub struct GenServer {
