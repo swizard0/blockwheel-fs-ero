@@ -7,6 +7,7 @@ use futures::{
 use alloc_pool::{
     bytes::{
         Bytes,
+        BytesPool,
     },
 };
 
@@ -24,14 +25,43 @@ use blockwheel_fs::{
     RequestDeleteBlockError,
 };
 
+use ero::{
+    supervisor::{
+        SupervisorPid,
+    },
+    ErrorSeverity,
+};
+
 use crate::{
+    job,
     proto,
     IterBlocks,
     IterBlocksItem,
 };
 
-pub fn gen_server_start() {
+#[derive(Debug)]
+pub enum Error {
+    BlockwheelFs(blockwheel_fs::Error),
+}
 
+pub fn run<P>(
+    parent_supervisor: SupervisorPid,
+    params: blockwheel_fs::Params,
+    blocks_pool: BytesPool,
+    thread_pool: &P,
+)
+    -> Result<(), Error>
+where P: edeltraud::ThreadPool<job::Job> + Clone + Send + 'static,
+{
+    let blockwheel_fs_meister = blockwheel_fs::Freie::new()
+        .versklaven(
+            params.clone(),
+            blocks_pool.clone(),
+            &edeltraud::ThreadPoolMap::new(thread_pool.clone()),
+        )
+        .map_err(Error::BlockwheelFs)?;
+
+    todo!()
 }
 
 pub enum Order {
