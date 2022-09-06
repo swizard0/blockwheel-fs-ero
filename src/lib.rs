@@ -26,7 +26,11 @@ use blockwheel_fs::{
     RequestDeleteBlockError,
 };
 
+pub mod job;
+
 mod proto;
+mod gen_server;
+mod access_policy;
 
 pub struct GenServer {
     request_tx: mpsc::Sender<proto::Request>,
