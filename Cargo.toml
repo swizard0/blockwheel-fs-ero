@@ -8,6 +8,7 @@ edition = "2021"
 [dependencies]
 ero = { git = "https://github.com/swizard0/ero.git" }
 edeltraud = { git = "https://github.com/swizard0/edeltraud.git" }
+alloc-pool = { git = "https://github.com/swizard0/alloc-pool.git" }
 arbeitssklave = { git = "https://github.com/swizard0/arbeitssklave.git" }
 blockwheel-fs = { git = "https://github.com/swizard0/blockwheel-fs.git" }
 
