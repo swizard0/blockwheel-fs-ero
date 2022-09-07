@@ -68,7 +68,7 @@ impl GenServer {
         parent_supervisor: ero::supervisor::SupervisorPid,
         params: blockwheel_fs::Params,
         blocks_pool: BytesPool,
-        thread_pool: &P,
+        thread_pool: P,
     )
     where P: edeltraud::ThreadPool<job::Job> + Clone + Send + 'static,
     {

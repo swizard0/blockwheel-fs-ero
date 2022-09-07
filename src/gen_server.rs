@@ -61,7 +61,7 @@ pub async fn run<P>(
     parent_supervisor: SupervisorPid,
     params: Params,
     blocks_pool: BytesPool,
-    thread_pool: &P,
+    thread_pool: P,
 )
 where P: edeltraud::ThreadPool<job::Job> + Clone + Send + 'static,
 {
@@ -83,7 +83,7 @@ where P: edeltraud::ThreadPool<job::Job> + Clone + Send + 'static,
                 parent_supervisor,
                 params,
                 blocks_pool,
-                thread_pool: thread_pool.clone(),
+                thread_pool,
                 fused_request_rx,
             },
             |mut state| async move {
