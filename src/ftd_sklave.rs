@@ -39,7 +39,7 @@ pub type Meister = arbeitssklave::Meister<Welt, Order>;
 pub type SklaveJob = arbeitssklave::SklaveJob<Welt, Order>;
 
 pub enum Order {
-    Request(proto::Request),
+    RequestInfo(proto::RequestInfo),
     Reply(OrderReply),
 }
 

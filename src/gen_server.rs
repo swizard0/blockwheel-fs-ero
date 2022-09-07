@@ -40,6 +40,7 @@ pub enum Error {
     BlockwheelFsVersklaven(blockwheel_fs::Error),
     FtdSendegeraetStarten(komm::Error),
     FtdVersklaven(arbeitssklave::Error),
+    RequestInfoBefehl(arbeitssklave::Error),
 }
 
 pub async fn run<P>(
@@ -142,9 +143,10 @@ where P: edeltraud::ThreadPool<job::Job> + Clone + Send + 'static,
 {
     while let Some(request) = state.fused_request_rx.next().await {
         match request {
-            proto::Request::Info(proto::RequestInfo { reply_tx, }) => {
-
-                todo!();
+            proto::Request::Info(request_info) => {
+                ftd_sklave_meister
+                    .befehl(ftd_sklave::Order::RequestInfo(request_info), &state.thread_pool)
+                    .map_err(Error::RequestInfoBefehl)?;
             },
             proto::Request::Flush(proto::RequestFlush { reply_tx, }) => {
 
