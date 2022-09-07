@@ -1,14 +1,15 @@
 use futures::{
     channel::{
         mpsc,
+        oneshot,
     },
     stream,
+    SinkExt,
     StreamExt,
 };
 
 use alloc_pool::{
     bytes::{
-        Bytes,
         BytesPool,
     },
 };
@@ -33,6 +34,8 @@ use crate::{
     access_policy::{
         AccessPolicy,
     },
+    IterBlocks,
+    IterBlocksItem,
 };
 
 #[derive(Debug)]
@@ -41,6 +44,14 @@ pub enum Error {
     FtdSendegeraetStarten(komm::Error),
     FtdVersklaven(arbeitssklave::Error),
     RequestInfoBefehl(arbeitssklave::Error),
+    RequestFlushBefehl(arbeitssklave::Error),
+    RequestWriteBlockBefehl(arbeitssklave::Error),
+    RequestReadBlockBefehl(arbeitssklave::Error),
+    RequestDeleteBlockBefehl(arbeitssklave::Error),
+    RequestIterBlocksInitBefehl(arbeitssklave::Error),
+    RequestIterBlocksNextBefehl(arbeitssklave::Error),
+    FtdSklaveIsGoneDuringIterBlocksInit,
+    FtdSklaveIsGoneDuringIterBlocksNext,
 }
 
 pub async fn run<P>(
@@ -115,62 +126,150 @@ where P: edeltraud::ThreadPool<job::Job> + Clone + Send + 'static,
     let ftd_sklave_freie = arbeitssklave::Freie::new();
     let ftd_sendegeraet = komm::Sendegeraet::starten(&ftd_sklave_freie, state.thread_pool.clone())
         .map_err(Error::FtdSendegeraetStarten)?;
-    let ftd_sklave_meister = ftd_sklave_freie
-        .versklaven(
-            ftd_sklave::Welt {
-                blockwheel_fs_meister,
-            },
-            &state.thread_pool,
-        )
+    let _ftd_sklave_meister = ftd_sklave_freie
+        .versklaven(ftd_sklave::Welt, &state.thread_pool)
         .map_err(Error::FtdVersklaven)?;
 
     busyloop(
         supervisor_pid,
         state,
+        blockwheel_fs_meister,
         ftd_sendegeraet,
-        ftd_sklave_meister,
     ).await
 }
 
 async fn busyloop<P>(
-    supervisor_pid: SupervisorPid,
+    mut supervisor_pid: SupervisorPid,
     mut state: State<P>,
+    blockwheel_fs_meister: blockwheel_fs::Meister<AccessPolicy>,
     ftd_sendegeraet: komm::Sendegeraet<ftd_sklave::Order>,
-    ftd_sklave_meister: ftd_sklave::Meister,
 )
     -> Result<(), ErrorSeverity<State<P>, Error>>
 where P: edeltraud::ThreadPool<job::Job> + Clone + Send + 'static,
 {
     while let Some(request) = state.fused_request_rx.next().await {
         match request {
-            proto::Request::Info(request_info) => {
-                ftd_sklave_meister
-                    .befehl(ftd_sklave::Order::RequestInfo(request_info), &state.thread_pool)
+            proto::Request::Info(proto::RequestInfo { reply_tx, }) => {
+                blockwheel_fs_meister
+                    .info(
+                        ftd_sendegeraet.rueckkopplung(reply_tx),
+                        &edeltraud::ThreadPoolMap::new(&state.thread_pool),
+                    )
                     .map_err(Error::RequestInfoBefehl)?;
             },
             proto::Request::Flush(proto::RequestFlush { reply_tx, }) => {
-
-                todo!();
+                blockwheel_fs_meister
+                    .flush(
+                        ftd_sendegeraet.rueckkopplung(reply_tx),
+                        &edeltraud::ThreadPoolMap::new(&state.thread_pool),
+                    )
+                    .map_err(Error::RequestFlushBefehl)?;
             },
             proto::Request::WriteBlock(proto::RequestWriteBlock { block_bytes, reply_tx, }) => {
-
-                todo!();
+                blockwheel_fs_meister
+                    .write_block(
+                        block_bytes,
+                        ftd_sendegeraet.rueckkopplung(reply_tx),
+                        &edeltraud::ThreadPoolMap::new(&state.thread_pool),
+                    )
+                    .map_err(Error::RequestWriteBlockBefehl)?;
             },
             proto::Request::ReadBlock(proto::RequestReadBlock { block_id, reply_tx, }) => {
-
-                todo!();
+                blockwheel_fs_meister
+                    .read_block(
+                        block_id,
+                        ftd_sendegeraet.rueckkopplung(reply_tx),
+                        &edeltraud::ThreadPoolMap::new(&state.thread_pool),
+                    )
+                    .map_err(Error::RequestReadBlockBefehl)?;
             },
             proto::Request::DeleteBlock(proto::RequestDeleteBlock { block_id, reply_tx, }) => {
-
-                todo!();
+                blockwheel_fs_meister
+                    .delete_block(
+                        block_id,
+                        ftd_sendegeraet.rueckkopplung(reply_tx),
+                        &edeltraud::ThreadPoolMap::new(&state.thread_pool),
+                    )
+                    .map_err(Error::RequestDeleteBlockBefehl)?;
             },
             proto::Request::IterBlocks(proto::RequestIterBlocks { reply_tx, }) => {
-
-                todo!();
+                let blockwheel_fs_meister = blockwheel_fs_meister.clone();
+                let ftd_sendegeraet = ftd_sendegeraet.clone();
+                let thread_pool = state.thread_pool.clone();
+                supervisor_pid.spawn_link_temporary(async move {
+                    if let Err(error) = iter_blocks_loop(blockwheel_fs_meister, ftd_sendegeraet, reply_tx, thread_pool).await {
+                        log::warn!("blocks iterator loop exited with error: {:?}", error);
+                    }
+                });
             },
         }
     }
 
     log::debug!("request channel is depleted: terminating busyloop");
     Ok(())
+}
+
+async fn iter_blocks_loop<P>(
+    blockwheel_fs_meister: blockwheel_fs::Meister<AccessPolicy>,
+    ftd_sendegeraet: komm::Sendegeraet<ftd_sklave::Order>,
+    reply_tx: proto::RequestIterBlocksReplyTx,
+    thread_pool: P,
+)
+    -> Result<(), Error>
+where P: edeltraud::ThreadPool<job::Job>
+{
+    let (iter_blocks_init_tx, iter_blocks_init_rx) = oneshot::channel();
+    blockwheel_fs_meister
+        .iter_blocks_init(
+            ftd_sendegeraet.rueckkopplung(ftd_sklave::RequestIterBlocksInit {
+                iter_blocks_init_tx,
+            }),
+            &edeltraud::ThreadPoolMap::new(&thread_pool),
+        )
+        .map_err(Error::RequestIterBlocksInitBefehl)?;
+    let iter_blocks = iter_blocks_init_rx.await
+        .map_err(|oneshot::Canceled| Error::FtdSklaveIsGoneDuringIterBlocksInit)?;
+
+    let (mut blocks_tx, blocks_rx) = mpsc::channel(0);
+    let iter_blocks_reply = IterBlocks {
+        blocks_total_count: iter_blocks.blocks_total_count,
+        blocks_total_size: iter_blocks.blocks_total_size,
+        blocks_rx,
+    };
+    if let Err(_send_error) = reply_tx.send(iter_blocks_reply) {
+        log::debug!("client canceled iter IterBlocks request (init)");
+        return Ok(());
+    }
+
+    let mut current_iterator_next = iter_blocks.iterator_next;
+    loop {
+        let (iter_blocks_next_tx, iter_blocks_next_rx) = oneshot::channel();
+        blockwheel_fs_meister
+            .iter_blocks_next(
+                current_iterator_next,
+                ftd_sendegeraet.rueckkopplung(ftd_sklave::RequestIterBlocksNext {
+                    iter_blocks_next_tx,
+                }),
+                &edeltraud::ThreadPoolMap::new(&thread_pool),
+            )
+            .map_err(Error::RequestIterBlocksNextBefehl)?;
+        let iter_blocks_item = iter_blocks_next_rx.await
+            .map_err(|oneshot::Canceled| Error::FtdSklaveIsGoneDuringIterBlocksNext)?;
+        match iter_blocks_item {
+            blockwheel_fs::IterBlocksItem::Block { block_id, block_bytes, iterator_next, } => {
+                let item = IterBlocksItem::Block { block_id, block_bytes, };
+                if let Err(_send_error) = blocks_tx.send(item).await {
+                    log::debug!("client canceled iter IterBlocks request (stream)");
+                    return Ok(());
+                }
+                current_iterator_next = iterator_next;
+            },
+            blockwheel_fs::IterBlocksItem::NoMoreBlocks => {
+                if let Err(_send_error) = blocks_tx.send(IterBlocksItem::NoMoreBlocks).await {
+                    log::debug!("client canceled iter IterBlocks request (stream)");
+                }
+                return Ok(());
+            },
+        }
+    }
 }

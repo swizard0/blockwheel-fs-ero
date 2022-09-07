@@ -1,6 +1,7 @@
 use futures::{
     channel::{
         mpsc,
+        oneshot,
     },
 };
 
@@ -35,25 +36,32 @@ use crate::{
     IterBlocksItem,
 };
 
-pub type Meister = arbeitssklave::Meister<Welt, Order>;
 pub type SklaveJob = arbeitssklave::SklaveJob<Welt, Order>;
 
 pub enum Order {
     RequestInfo(proto::RequestInfo),
+    RequestFlush(proto::RequestFlush),
+    RequestWriteBlock(proto::RequestWriteBlock),
+    RequestReadBlock(proto::RequestReadBlock),
+    RequestDeleteBlock(proto::RequestDeleteBlock),
+    RequestIterBlocksInit(RequestIterBlocksInit),
+    RequestIterBlocksNext(RequestIterBlocksNext),
     Reply(OrderReply),
 }
 
-pub struct Welt {
-    pub blockwheel_fs_meister: blockwheel_fs::Meister<AccessPolicy>,
+pub struct RequestIterBlocksInit {
+    pub iter_blocks_init_tx: oneshot::Sender<blockwheel_fs::IterBlocks>,
 }
+
+pub struct RequestIterBlocksNext {
+    pub iter_blocks_next_tx: oneshot::Sender<blockwheel_fs::IterBlocksItem>,
+}
+
+pub struct Welt;
 
 pub fn job<P>(mut sklave_job: SklaveJob, thread_pool: &P) where P: edeltraud::ThreadPool<job::Job> {
 
     todo!()
-}
-
-pub struct IterBlocksNext {
-    blocks_tx: mpsc::Sender<IterBlocksItem>,
 }
 
 pub enum OrderReply {
@@ -67,10 +75,10 @@ pub enum OrderReply {
     ReadBlock(komm::Umschlag<Result<Bytes, RequestReadBlockError>, proto::RequestReadBlockReplyTx>),
     DeleteBlockCancel(komm::UmschlagAbbrechen<proto::RequestDeleteBlockReplyTx>),
     DeleteBlock(komm::Umschlag<Result<Deleted, RequestDeleteBlockError>, proto::RequestDeleteBlockReplyTx>),
-    IterBlocksInitCancel(komm::UmschlagAbbrechen<proto::RequestIterBlocksReplyTx>),
-    IterBlocksInit(komm::Umschlag<blockwheel_fs::IterBlocks, proto::RequestIterBlocksReplyTx>),
-    IterBlocksNextCancel(komm::UmschlagAbbrechen<IterBlocksNext>),
-    IterBlocksNext(komm::Umschlag<blockwheel_fs::IterBlocksItem, IterBlocksNext>),
+    IterBlocksInitCancel(komm::UmschlagAbbrechen<RequestIterBlocksInit>),
+    IterBlocksInit(komm::Umschlag<blockwheel_fs::IterBlocks, RequestIterBlocksInit>),
+    IterBlocksNextCancel(komm::UmschlagAbbrechen<RequestIterBlocksNext>),
+    IterBlocksNext(komm::Umschlag<blockwheel_fs::IterBlocksItem, RequestIterBlocksNext>),
 }
 
 impl From<komm::UmschlagAbbrechen<proto::RequestInfoReplyTx>> for Order {
@@ -133,26 +141,26 @@ impl From<komm::Umschlag<Result<Deleted, RequestDeleteBlockError>, proto::Reques
     }
 }
 
-impl From<komm::UmschlagAbbrechen<proto::RequestIterBlocksReplyTx>> for Order {
-    fn from(v: komm::UmschlagAbbrechen<proto::RequestIterBlocksReplyTx>) -> Order {
+impl From<komm::UmschlagAbbrechen<RequestIterBlocksInit>> for Order {
+    fn from(v: komm::UmschlagAbbrechen<RequestIterBlocksInit>) -> Order {
         Order::Reply(OrderReply::IterBlocksInitCancel(v))
     }
 }
 
-impl From<komm::Umschlag<blockwheel_fs::IterBlocks, proto::RequestIterBlocksReplyTx>> for Order {
-    fn from(v: komm::Umschlag<blockwheel_fs::IterBlocks, proto::RequestIterBlocksReplyTx>) -> Order {
+impl From<komm::Umschlag<blockwheel_fs::IterBlocks, RequestIterBlocksInit>> for Order {
+    fn from(v: komm::Umschlag<blockwheel_fs::IterBlocks, RequestIterBlocksInit>) -> Order {
         Order::Reply(OrderReply::IterBlocksInit(v))
     }
 }
 
-impl From<komm::UmschlagAbbrechen<IterBlocksNext>> for Order {
-    fn from(v: komm::UmschlagAbbrechen<IterBlocksNext>) -> Order {
+impl From<komm::UmschlagAbbrechen<RequestIterBlocksNext>> for Order {
+    fn from(v: komm::UmschlagAbbrechen<RequestIterBlocksNext>) -> Order {
         Order::Reply(OrderReply::IterBlocksNextCancel(v))
     }
 }
 
-impl From<komm::Umschlag<blockwheel_fs::IterBlocksItem, IterBlocksNext>> for Order {
-    fn from(v: komm::Umschlag<blockwheel_fs::IterBlocksItem, IterBlocksNext>) -> Order {
+impl From<komm::Umschlag<blockwheel_fs::IterBlocksItem, RequestIterBlocksNext>> for Order {
+    fn from(v: komm::Umschlag<blockwheel_fs::IterBlocksItem, RequestIterBlocksNext>) -> Order {
         Order::Reply(OrderReply::IterBlocksNext(v))
     }
 }

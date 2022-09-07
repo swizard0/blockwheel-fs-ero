@@ -12,6 +12,6 @@ impl blockwheel_fs::AccessPolicy for AccessPolicy {
     type WriteBlock = proto::RequestWriteBlockReplyTx;
     type ReadBlock = proto::RequestReadBlockReplyTx;
     type DeleteBlock = proto::RequestDeleteBlockReplyTx;
-    type IterBlocksInit = proto::RequestIterBlocksReplyTx;
-    type IterBlocksNext = ftd_sklave::IterBlocksNext;
+    type IterBlocksInit = ftd_sklave::RequestIterBlocksInit;
+    type IterBlocksNext = ftd_sklave::RequestIterBlocksNext;
 }
