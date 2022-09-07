@@ -17,14 +17,18 @@ use alloc_pool::{
     },
 };
 
-use blockwheel_fs::{
+pub use blockwheel_fs::{
     block,
     Info,
+    Params,
     Flushed,
     Deleted,
+    InterpreterParams,
+    RamInterpreterParams,
     RequestReadBlockError,
     RequestWriteBlockError,
     RequestDeleteBlockError,
+    FixedFileInterpreterParams,
 };
 
 pub mod job;

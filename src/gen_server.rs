@@ -34,8 +34,10 @@ use crate::{
     access_policy::{
         AccessPolicy,
     },
+    Params,
     IterBlocks,
     IterBlocksItem,
+    InterpreterParams,
 };
 
 #[derive(Debug)]
@@ -57,7 +59,7 @@ pub enum Error {
 pub async fn run<P>(
     fused_request_rx: stream::Fuse<mpsc::Receiver<proto::Request>>,
     parent_supervisor: SupervisorPid,
-    params: blockwheel_fs::Params,
+    params: Params,
     blocks_pool: BytesPool,
     thread_pool: &P,
 )
@@ -69,9 +71,9 @@ where P: edeltraud::ThreadPool<job::Job> + Clone + Send + 'static,
                 name: format!(
                     "blockwheel on {:?}",
                     match params.interpreter {
-                        blockwheel_fs::InterpreterParams::FixedFile(ref interpreter_params) =>
+                        InterpreterParams::FixedFile(ref interpreter_params) =>
                             format!("fixed file: {:?}", interpreter_params.wheel_filename),
-                        blockwheel_fs::InterpreterParams::Ram(ref interpreter_params) =>
+                        InterpreterParams::Ram(ref interpreter_params) =>
                             format!("ram file of {} bytes", interpreter_params.init_wheel_size_bytes),
                     },
                 ),
@@ -101,7 +103,7 @@ where P: edeltraud::ThreadPool<job::Job> + Clone + Send + 'static,
 
 struct State<P> {
     parent_supervisor: SupervisorPid,
-    params: blockwheel_fs::Params,
+    params: Params,
     blocks_pool: BytesPool,
     thread_pool: P,
     fused_request_rx: stream::Fuse<mpsc::Receiver<proto::Request>>,

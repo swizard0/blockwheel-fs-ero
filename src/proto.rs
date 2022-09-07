@@ -10,18 +10,15 @@ use alloc_pool::{
     },
 };
 
-use blockwheel_fs::{
+use crate::{
     block,
     Info,
     Flushed,
     Deleted,
+    IterBlocks,
     RequestReadBlockError,
     RequestWriteBlockError,
     RequestDeleteBlockError,
-};
-
-use crate::{
-    IterBlocks,
 };
 
 #[derive(Debug)]
