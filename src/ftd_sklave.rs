@@ -35,6 +35,7 @@ use crate::{
     IterBlocksItem,
 };
 
+pub type Meister = arbeitssklave::Meister<Welt, Order>;
 pub type SklaveJob = arbeitssklave::SklaveJob<Welt, Order>;
 
 pub enum Order {

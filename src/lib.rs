@@ -13,6 +13,7 @@ use futures::{
 use alloc_pool::{
     bytes::{
         Bytes,
+        BytesPool,
     },
 };
 
@@ -56,6 +57,24 @@ impl GenServer {
         Pid {
             request_tx: self.request_tx.clone(),
         }
+    }
+
+    pub async fn run<P>(
+        self,
+        parent_supervisor: ero::supervisor::SupervisorPid,
+        params: blockwheel_fs::Params,
+        blocks_pool: BytesPool,
+        thread_pool: &P,
+    )
+    where P: edeltraud::ThreadPool<job::Job> + Clone + Send + 'static,
+    {
+        gen_server::run(
+            self.fused_request_rx,
+            parent_supervisor,
+            params,
+            blocks_pool,
+            thread_pool,
+        ).await
     }
 }
 
