@@ -69,7 +69,7 @@ where P: edeltraud::ThreadPool<job::Job> + Clone + Send + 'static,
         restart::restartable(
             ero::Params {
                 name: format!(
-                    "blockwheel on {:?}",
+                    "blockwheel_fs on {:?}",
                     match params.interpreter {
                         InterpreterParams::FixedFile(ref interpreter_params) =>
                             format!("fixed file: {:?}", interpreter_params.wheel_filename),
