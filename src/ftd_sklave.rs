@@ -90,38 +90,38 @@ fn run_job<P>(mut sklave_job: SklaveJob, _thread_pool: &P) -> Result<(), Error> 
                     match befehl {
                         Order::InfoCancel(komm::UmschlagAbbrechen { .. }) =>
                             return Err(Error::GenServerIsLostOnRequestInfo),
-                        Order::Info(komm::Umschlag { payload: info, stamp: reply_tx, }) =>
+                        Order::Info(komm::Umschlag { inhalt: info, stamp: reply_tx, }) =>
                             if let Err(_send_error) = reply_tx.send(info) {
                                 log::debug!("client is gone during RequestInfo");
                             },
                         Order::FlushCancel(komm::UmschlagAbbrechen { .. }) =>
                             return Err(Error::GenServerIsLostOnRequestFlush),
-                        Order::Flush(komm::Umschlag { payload: Flushed, stamp: reply_tx, }) =>
+                        Order::Flush(komm::Umschlag { inhalt: Flushed, stamp: reply_tx, }) =>
                             if let Err(_send_error) = reply_tx.send(Flushed) {
                                 log::debug!("client is gone during RequestFlush");
                             },
                         Order::WriteBlockCancel(komm::UmschlagAbbrechen { .. }) =>
                             return Err(Error::GenServerIsLostOnRequestWriteBlock),
-                        Order::WriteBlock(komm::Umschlag { payload: write_block_result, stamp: reply_tx, }) =>
+                        Order::WriteBlock(komm::Umschlag { inhalt: write_block_result, stamp: reply_tx, }) =>
                             if let Err(_send_error) = reply_tx.send(write_block_result) {
                                 log::debug!("client is gone during RequestWriteBlock");
                             },
                         Order::ReadBlockCancel(komm::UmschlagAbbrechen { .. }) =>
                             return Err(Error::GenServerIsLostOnRequestReadBlock),
-                        Order::ReadBlock(komm::Umschlag { payload: read_block_result, stamp: reply_tx, }) =>
+                        Order::ReadBlock(komm::Umschlag { inhalt: read_block_result, stamp: reply_tx, }) =>
                             if let Err(_send_error) = reply_tx.send(read_block_result) {
                                 log::debug!("client is gone during RequestReadBlock");
                             },
                         Order::DeleteBlockCancel(komm::UmschlagAbbrechen { .. }) =>
                             return Err(Error::GenServerIsLostOnRequestDeleteBlock),
-                        Order::DeleteBlock(komm::Umschlag { payload: delete_block_result, stamp: reply_tx, }) =>
+                        Order::DeleteBlock(komm::Umschlag { inhalt: delete_block_result, stamp: reply_tx, }) =>
                             if let Err(_send_error) = reply_tx.send(delete_block_result) {
                                 log::debug!("client is gone during RequestDeleteBlock");
                             },
                         Order::IterBlocksInitCancel(komm::UmschlagAbbrechen { .. }) =>
                             return Err(Error::GenServerIsLostOnRequestIterBlocksInit),
                         Order::IterBlocksInit(komm::Umschlag {
-                            payload: iter_blocks,
+                            inhalt: iter_blocks,
                             stamp: RequestIterBlocksInit { iter_blocks_init_tx, },
                         }) =>
                             if let Err(_send_error) = iter_blocks_init_tx.send(iter_blocks) {
@@ -130,7 +130,7 @@ fn run_job<P>(mut sklave_job: SklaveJob, _thread_pool: &P) -> Result<(), Error> 
                         Order::IterBlocksNextCancel(komm::UmschlagAbbrechen { .. }) =>
                             return Err(Error::GenServerIsLostOnRequestIterBlocksNext),
                         Order::IterBlocksNext(komm::Umschlag {
-                            payload: iter_blocks_item,
+                            inhalt: iter_blocks_item,
                             stamp: RequestIterBlocksNext { iter_blocks_next_tx, },
                         }) =>
                             if let Err(_send_error) = iter_blocks_next_tx.send(iter_blocks_item) {
