@@ -31,8 +31,8 @@ use crate::{
     job,
     proto,
     ftd_sklave,
-    access_policy::{
-        AccessPolicy,
+    echo_policy::{
+        EchoPolicy,
     },
     Params,
     IterBlocks,
@@ -143,7 +143,7 @@ where P: edeltraud::ThreadPool<job::Job> + Clone + Send + 'static,
 async fn busyloop<P>(
     mut supervisor_pid: SupervisorPid,
     mut state: State<P>,
-    blockwheel_fs_meister: blockwheel_fs::Meister<AccessPolicy>,
+    blockwheel_fs_meister: blockwheel_fs::Meister<EchoPolicy>,
     ftd_sendegeraet: komm::Sendegeraet<ftd_sklave::Order>,
 )
     -> Result<(), ErrorSeverity<State<P>, Error>>
@@ -212,7 +212,7 @@ where P: edeltraud::ThreadPool<job::Job> + Clone + Send + 'static,
 }
 
 async fn iter_blocks_loop<P>(
-    blockwheel_fs_meister: blockwheel_fs::Meister<AccessPolicy>,
+    blockwheel_fs_meister: blockwheel_fs::Meister<EchoPolicy>,
     ftd_sendegeraet: komm::Sendegeraet<ftd_sklave::Order>,
     reply_tx: proto::RequestIterBlocksReplyTx,
     thread_pool: P,

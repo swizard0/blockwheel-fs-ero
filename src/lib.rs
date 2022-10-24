@@ -36,7 +36,7 @@ pub mod job;
 mod proto;
 mod gen_server;
 mod ftd_sklave;
-mod access_policy;
+mod echo_policy;
 
 pub struct GenServer {
     request_tx: mpsc::Sender<proto::Request>,

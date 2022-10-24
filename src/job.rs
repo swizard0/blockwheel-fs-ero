@@ -1,17 +1,17 @@
 use crate::{
-    access_policy::{
-        AccessPolicy,
+    echo_policy::{
+        EchoPolicy,
     },
     ftd_sklave,
 };
 
 pub enum Job {
-    BlockwheelFs(blockwheel_fs::job::Job<AccessPolicy>),
+    BlockwheelFs(blockwheel_fs::job::Job<EchoPolicy>),
     FtdSklave(ftd_sklave::SklaveJob),
 }
 
-impl From<blockwheel_fs::job::Job<AccessPolicy>> for Job {
-    fn from(job: blockwheel_fs::job::Job<AccessPolicy>) -> Job {
+impl From<blockwheel_fs::job::Job<EchoPolicy>> for Job {
+    fn from(job: blockwheel_fs::job::Job<EchoPolicy>) -> Job {
         Job::BlockwheelFs(job)
     }
 }
