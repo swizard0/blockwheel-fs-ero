@@ -48,6 +48,12 @@ pub struct Pid {
     request_tx: mpsc::Sender<proto::Request>,
 }
 
+impl Default for GenServer {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl GenServer {
     pub fn new() -> GenServer {
         let (request_tx, request_rx) = mpsc::channel(0);
@@ -70,7 +76,7 @@ impl GenServer {
         blocks_pool: BytesPool,
         thread_pool: P,
     )
-    where P: edeltraud::ThreadPool<job::Job> + Clone + Send + 'static,
+    where P: edeltraud::ThreadPool<job::Job> + Clone + Send + Sync + 'static,
     {
         gen_server::run(
             self.fused_request_rx,

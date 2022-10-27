@@ -63,7 +63,7 @@ pub async fn run<P>(
     blocks_pool: BytesPool,
     thread_pool: P,
 )
-where P: edeltraud::ThreadPool<job::Job> + Clone + Send + 'static,
+where P: edeltraud::ThreadPool<job::Job> + Clone + Send + Sync + 'static,
 {
     let terminate_result =
         restart::restartable(
@@ -116,7 +116,7 @@ impl<P> From<Error> for ErrorSeverity<State<P>, Error> {
 }
 
 async fn busyloop_init<P>(supervisor_pid: SupervisorPid, state: State<P>) -> Result<(), ErrorSeverity<State<P>, Error>>
-where P: edeltraud::ThreadPool<job::Job> + Clone + Send + 'static,
+where P: edeltraud::ThreadPool<job::Job> + Clone + Send + Sync + 'static,
 {
     let blockwheel_fs_meister = blockwheel_fs::Freie::new()
         .versklaven(
