@@ -1,6 +1,6 @@
 [package]
 name = "blockwheel-fs-ero"
-version = "0.1.7"
+version = "0.1.8"
 authors = ["Alexey Voznyuk <me@swizard.info>"]
 description = "blockwheel-fs async frontend via ero."
 edition = "2021"
@@ -15,4 +15,5 @@ blockwheel-fs = { git = "https://github.com/swizard0/blockwheel-fs.git" }
 log = "^0.4"
 futures = "^0.3"
 
+[dev-dependencies]
 tokio = { version = "^1", features = ["full"] }
