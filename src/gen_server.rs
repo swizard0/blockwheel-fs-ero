@@ -43,15 +43,14 @@ use crate::{
 #[derive(Debug)]
 pub enum Error {
     BlockwheelFsVersklaven(blockwheel_fs::Error),
-    FtdSendegeraetStarten(komm::Error),
-    FtdVersklaven(arbeitssklave::Error),
-    RequestInfoBefehl(arbeitssklave::Error),
-    RequestFlushBefehl(arbeitssklave::Error),
-    RequestWriteBlockBefehl(arbeitssklave::Error),
-    RequestReadBlockBefehl(arbeitssklave::Error),
-    RequestDeleteBlockBefehl(arbeitssklave::Error),
-    RequestIterBlocksInitBefehl(arbeitssklave::Error),
-    RequestIterBlocksNextBefehl(arbeitssklave::Error),
+    FtdVersklaven(komm::Error),
+    RequestInfoBefehl(blockwheel_fs::Error),
+    RequestFlushBefehl(blockwheel_fs::Error),
+    RequestWriteBlockBefehl(blockwheel_fs::Error),
+    RequestReadBlockBefehl(blockwheel_fs::Error),
+    RequestDeleteBlockBefehl(blockwheel_fs::Error),
+    RequestIterBlocksInitBefehl(blockwheel_fs::Error),
+    RequestIterBlocksNextBefehl(blockwheel_fs::Error),
     FtdSklaveIsGoneDuringIterBlocksInit,
     FtdSklaveIsGoneDuringIterBlocksNext,
 }
@@ -75,6 +74,8 @@ where P: edeltraud::ThreadPool<job::Job> + Clone + Send + Sync + 'static,
                             format!("fixed file: {:?}", interpreter_params.wheel_filename),
                         InterpreterParams::Ram(ref interpreter_params) =>
                             format!("ram file of {} bytes", interpreter_params.init_wheel_size_bytes),
+                        InterpreterParams::Dummy(ref interpreter_params) =>
+                            format!("dummy file of {} bytes", interpreter_params.init_wheel_size_bytes),
                     },
                 ),
                 restart_strategy: RestartStrategy::InstantCrash,
@@ -118,19 +119,20 @@ impl<P> From<Error> for ErrorSeverity<State<P>, Error> {
 async fn busyloop_init<P>(supervisor_pid: SupervisorPid, state: State<P>) -> Result<(), ErrorSeverity<State<P>, Error>>
 where P: edeltraud::ThreadPool<job::Job> + Clone + Send + Sync + 'static,
 {
-    let blockwheel_fs_meister = blockwheel_fs::Freie::new()
-        .versklaven(
+    let blockwheel_fs_meister =
+        blockwheel_fs::Meister::versklaven(
             state.params.clone(),
             state.blocks_pool.clone(),
             &edeltraud::ThreadPoolMap::new(state.thread_pool.clone()),
         )
         .map_err(Error::BlockwheelFsVersklaven)?;
-    let ftd_sklave_freie = arbeitssklave::Freie::new();
-    let ftd_sendegeraet = komm::Sendegeraet::starten(&ftd_sklave_freie, state.thread_pool.clone())
-        .map_err(Error::FtdSendegeraetStarten)?;
-    let _ftd_sklave_meister = ftd_sklave_freie
-        .versklaven(ftd_sklave::Welt, &state.thread_pool)
+    let ftd_sklave_meister =
+        arbeitssklave::Freie::new(
+            ftd_sklave::Welt,
+        )
+        .versklaven_komm(&state.thread_pool)
         .map_err(Error::FtdVersklaven)?;
+    let ftd_sendegeraet = ftd_sklave_meister.sendegeraet().clone();
 
     busyloop(
         supervisor_pid,

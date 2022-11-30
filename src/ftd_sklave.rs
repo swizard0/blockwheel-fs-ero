@@ -26,7 +26,7 @@ use crate::{
     RequestDeleteBlockError,
 };
 
-pub type SklaveJob = arbeitssklave::SklaveJob<Welt, Order>;
+pub type SklaveJob = komm::SklaveJob<Welt, Order>;
 
 pub enum Order {
     InfoCancel(komm::UmschlagAbbrechen<proto::RequestInfoReplyTx>),

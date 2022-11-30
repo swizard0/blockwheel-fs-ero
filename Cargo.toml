@@ -1,6 +1,6 @@
 [package]
 name = "blockwheel-fs-ero"
-version = "0.1.8"
+version = "0.1.9"
 authors = ["Alexey Voznyuk <me@swizard.info>"]
 description = "blockwheel-fs async frontend via ero."
 edition = "2021"
