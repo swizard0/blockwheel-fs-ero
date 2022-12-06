@@ -28,7 +28,6 @@ use ero::{
 };
 
 use crate::{
-    job,
     proto,
     ftd_sklave,
     echo_policy::{
@@ -43,7 +42,7 @@ use crate::{
 #[derive(Debug)]
 pub enum Error {
     BlockwheelFsVersklaven(blockwheel_fs::Error),
-    FtdVersklaven(komm::Error),
+    FtdVersklaven(arbeitssklave::Error),
     RequestInfoBefehl(blockwheel_fs::Error),
     RequestFlushBefehl(blockwheel_fs::Error),
     RequestWriteBlockBefehl(blockwheel_fs::Error),
@@ -55,14 +54,16 @@ pub enum Error {
     FtdSklaveIsGoneDuringIterBlocksNext,
 }
 
-pub async fn run<P>(
+pub async fn run<J>(
     fused_request_rx: stream::Fuse<mpsc::Receiver<proto::Request>>,
     parent_supervisor: SupervisorPid,
     params: Params,
     blocks_pool: BytesPool,
-    thread_pool: P,
+    thread_pool: edeltraud::Handle<J>,
 )
-where P: edeltraud::ThreadPool<job::Job> + Clone + Send + Sync + 'static,
+where J: From<blockwheel_fs::job::SklaveJob<EchoPolicy>>,
+      J: From<ftd_sklave::SklaveJob>,
+      J: Send + 'static,
 {
     let terminate_result =
         restart::restartable(
@@ -102,37 +103,37 @@ where P: edeltraud::ThreadPool<job::Job> + Clone + Send + Sync + 'static,
     }
 }
 
-struct State<P> {
+struct State<J> {
     parent_supervisor: SupervisorPid,
     params: Params,
     blocks_pool: BytesPool,
-    thread_pool: P,
+    thread_pool: edeltraud::Handle<J>,
     fused_request_rx: stream::Fuse<mpsc::Receiver<proto::Request>>,
 }
 
-impl<P> From<Error> for ErrorSeverity<State<P>, Error> {
+impl<J> From<Error> for ErrorSeverity<State<J>, Error> {
     fn from(error: Error) -> Self {
         ErrorSeverity::Fatal(error)
     }
 }
 
-async fn busyloop_init<P>(supervisor_pid: SupervisorPid, state: State<P>) -> Result<(), ErrorSeverity<State<P>, Error>>
-where P: edeltraud::ThreadPool<job::Job> + Clone + Send + Sync + 'static,
+async fn busyloop_init<J>(supervisor_pid: SupervisorPid, state: State<J>) -> Result<(), ErrorSeverity<State<J>, Error>>
+where J: From<blockwheel_fs::job::SklaveJob<EchoPolicy>>,
+      J: From<ftd_sklave::SklaveJob>,
+      J: Send + 'static,
 {
     let blockwheel_fs_meister =
         blockwheel_fs::Meister::versklaven(
             state.params.clone(),
             state.blocks_pool.clone(),
-            &edeltraud::ThreadPoolMap::new(state.thread_pool.clone()),
+            &state.thread_pool,
         )
         .map_err(Error::BlockwheelFsVersklaven)?;
-    let ftd_sklave_meister =
-        arbeitssklave::Freie::new(
-            ftd_sklave::Welt,
-        )
-        .versklaven_komm(&state.thread_pool)
+    let ftd_sklave_meister = arbeitssklave::Freie::new()
+        .versklaven(ftd_sklave::Welt, &state.thread_pool)
         .map_err(Error::FtdVersklaven)?;
-    let ftd_sendegeraet = ftd_sklave_meister.sendegeraet().clone();
+    let ftd_sendegeraet =
+        komm::Sendegeraet::starten(ftd_sklave_meister.clone(), state.thread_pool.clone());
 
     busyloop(
         supervisor_pid,
@@ -142,14 +143,16 @@ where P: edeltraud::ThreadPool<job::Job> + Clone + Send + Sync + 'static,
     ).await
 }
 
-async fn busyloop<P>(
+async fn busyloop<J>(
     mut supervisor_pid: SupervisorPid,
-    mut state: State<P>,
+    mut state: State<J>,
     blockwheel_fs_meister: blockwheel_fs::Meister<EchoPolicy>,
     ftd_sendegeraet: komm::Sendegeraet<ftd_sklave::Order>,
 )
-    -> Result<(), ErrorSeverity<State<P>, Error>>
-where P: edeltraud::ThreadPool<job::Job> + Clone + Send + 'static,
+    -> Result<(), ErrorSeverity<State<J>, Error>>
+where J: From<blockwheel_fs::job::SklaveJob<EchoPolicy>>,
+      J: From<ftd_sklave::SklaveJob>,
+      J: Send + 'static,
 {
     while let Some(request) = state.fused_request_rx.next().await {
         match request {
@@ -157,7 +160,7 @@ where P: edeltraud::ThreadPool<job::Job> + Clone + Send + 'static,
                 blockwheel_fs_meister
                     .info(
                         ftd_sendegeraet.rueckkopplung(reply_tx),
-                        &edeltraud::ThreadPoolMap::new(&state.thread_pool),
+                        &state.thread_pool,
                     )
                     .map_err(Error::RequestInfoBefehl)?;
             },
@@ -165,7 +168,7 @@ where P: edeltraud::ThreadPool<job::Job> + Clone + Send + 'static,
                 blockwheel_fs_meister
                     .flush(
                         ftd_sendegeraet.rueckkopplung(reply_tx),
-                        &edeltraud::ThreadPoolMap::new(&state.thread_pool),
+                        &state.thread_pool,
                     )
                     .map_err(Error::RequestFlushBefehl)?;
             },
@@ -174,7 +177,7 @@ where P: edeltraud::ThreadPool<job::Job> + Clone + Send + 'static,
                     .write_block(
                         block_bytes,
                         ftd_sendegeraet.rueckkopplung(reply_tx),
-                        &edeltraud::ThreadPoolMap::new(&state.thread_pool),
+                        &state.thread_pool,
                     )
                     .map_err(Error::RequestWriteBlockBefehl)?;
             },
@@ -183,7 +186,7 @@ where P: edeltraud::ThreadPool<job::Job> + Clone + Send + 'static,
                     .read_block(
                         block_id,
                         ftd_sendegeraet.rueckkopplung(reply_tx),
-                        &edeltraud::ThreadPoolMap::new(&state.thread_pool),
+                        &state.thread_pool,
                     )
                     .map_err(Error::RequestReadBlockBefehl)?;
             },
@@ -192,7 +195,7 @@ where P: edeltraud::ThreadPool<job::Job> + Clone + Send + 'static,
                     .delete_block(
                         block_id,
                         ftd_sendegeraet.rueckkopplung(reply_tx),
-                        &edeltraud::ThreadPoolMap::new(&state.thread_pool),
+                        &state.thread_pool,
                     )
                     .map_err(Error::RequestDeleteBlockBefehl)?;
             },
@@ -213,14 +216,16 @@ where P: edeltraud::ThreadPool<job::Job> + Clone + Send + 'static,
     Ok(())
 }
 
-async fn iter_blocks_loop<P>(
+async fn iter_blocks_loop<J>(
     blockwheel_fs_meister: blockwheel_fs::Meister<EchoPolicy>,
     ftd_sendegeraet: komm::Sendegeraet<ftd_sklave::Order>,
     reply_tx: proto::RequestIterBlocksReplyTx,
-    thread_pool: P,
+    thread_pool: edeltraud::Handle<J>,
 )
     -> Result<(), Error>
-where P: edeltraud::ThreadPool<job::Job>
+where J: From<blockwheel_fs::job::SklaveJob<EchoPolicy>>,
+      J: From<ftd_sklave::SklaveJob>,
+      J: Send + 'static,
 {
     let (iter_blocks_init_tx, iter_blocks_init_rx) = oneshot::channel();
     blockwheel_fs_meister
@@ -228,7 +233,7 @@ where P: edeltraud::ThreadPool<job::Job>
             ftd_sendegeraet.rueckkopplung(ftd_sklave::RequestIterBlocksInit {
                 iter_blocks_init_tx,
             }),
-            &edeltraud::ThreadPoolMap::new(&thread_pool),
+            &thread_pool,
         )
         .map_err(Error::RequestIterBlocksInitBefehl)?;
     let iter_blocks = iter_blocks_init_rx.await
@@ -254,7 +259,7 @@ where P: edeltraud::ThreadPool<job::Job>
                 ftd_sendegeraet.rueckkopplung(ftd_sklave::RequestIterBlocksNext {
                     iter_blocks_next_tx,
                 }),
-                &edeltraud::ThreadPoolMap::new(&thread_pool),
+                &thread_pool,
             )
             .map_err(Error::RequestIterBlocksNextBefehl)?;
         let iter_blocks_item = iter_blocks_next_rx.await

@@ -69,14 +69,16 @@ impl GenServer {
         }
     }
 
-    pub async fn run<P>(
+    pub async fn run<J>(
         self,
         parent_supervisor: ero::supervisor::SupervisorPid,
         params: blockwheel_fs::Params,
         blocks_pool: BytesPool,
-        thread_pool: P,
+        thread_pool: edeltraud::Handle<J>,
     )
-    where P: edeltraud::ThreadPool<job::Job> + Clone + Send + Sync + 'static,
+    where J: From<blockwheel_fs::job::SklaveJob<echo_policy::EchoPolicy>>,
+          J: From<ftd_sklave::SklaveJob>,
+          J: Send + 'static,
     {
         gen_server::run(
             self.fused_request_rx,
