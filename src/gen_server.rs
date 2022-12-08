@@ -133,12 +133,13 @@ where J: From<blockwheel_fs::job::SklaveJob<EchoPolicy>>,
         .versklaven(ftd_sklave::Welt, &state.thread_pool)
         .map_err(Error::FtdVersklaven)?;
     let ftd_sendegeraet =
-        komm::Sendegeraet::starten(ftd_sklave_meister.clone(), state.thread_pool.clone());
+        komm::Sendegeraet::starten(&ftd_sklave_meister, state.thread_pool.clone());
 
     busyloop(
         supervisor_pid,
         state,
         blockwheel_fs_meister,
+        ftd_sklave_meister,
         ftd_sendegeraet,
     ).await
 }
@@ -147,6 +148,7 @@ async fn busyloop<J>(
     mut supervisor_pid: SupervisorPid,
     mut state: State<J>,
     blockwheel_fs_meister: blockwheel_fs::Meister<EchoPolicy>,
+    _ftd_sklave_meister: arbeitssklave::Meister<ftd_sklave::Welt, ftd_sklave::Order>,
     ftd_sendegeraet: komm::Sendegeraet<ftd_sklave::Order>,
 )
     -> Result<(), ErrorSeverity<State<J>, Error>>
@@ -204,7 +206,7 @@ where J: From<blockwheel_fs::job::SklaveJob<EchoPolicy>>,
                 let ftd_sendegeraet = ftd_sendegeraet.clone();
                 let thread_pool = state.thread_pool.clone();
                 supervisor_pid.spawn_link_temporary(async move {
-                    if let Err(error) = iter_blocks_loop(blockwheel_fs_meister, ftd_sendegeraet, reply_tx, thread_pool).await {
+                    if let Err(error) = iter_blocks_loop(blockwheel_fs_meister, ftd_sendegeraet, reply_tx, &thread_pool).await {
                         log::warn!("blocks iterator loop exited with error: {:?}", error);
                     }
                 });
@@ -220,7 +222,7 @@ async fn iter_blocks_loop<J>(
     blockwheel_fs_meister: blockwheel_fs::Meister<EchoPolicy>,
     ftd_sendegeraet: komm::Sendegeraet<ftd_sklave::Order>,
     reply_tx: proto::RequestIterBlocksReplyTx,
-    thread_pool: edeltraud::Handle<J>,
+    thread_pool: &edeltraud::Handle<J>,
 )
     -> Result<(), Error>
 where J: From<blockwheel_fs::job::SklaveJob<EchoPolicy>>,
@@ -233,7 +235,7 @@ where J: From<blockwheel_fs::job::SklaveJob<EchoPolicy>>,
             ftd_sendegeraet.rueckkopplung(ftd_sklave::RequestIterBlocksInit {
                 iter_blocks_init_tx,
             }),
-            &thread_pool,
+            thread_pool,
         )
         .map_err(Error::RequestIterBlocksInitBefehl)?;
     let iter_blocks = iter_blocks_init_rx.await
@@ -259,7 +261,7 @@ where J: From<blockwheel_fs::job::SklaveJob<EchoPolicy>>,
                 ftd_sendegeraet.rueckkopplung(ftd_sklave::RequestIterBlocksNext {
                     iter_blocks_next_tx,
                 }),
-                &thread_pool,
+                thread_pool,
             )
             .map_err(Error::RequestIterBlocksNextBefehl)?;
         let iter_blocks_item = iter_blocks_next_rx.await
